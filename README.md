@@ -9,8 +9,30 @@ Currently, two official plugins are available:
 
 ## React Compiler
 
+<!-- Trigger workflow -->
+
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## GitHub Actions Desktop Build
+
+This repo now includes a GitHub Actions workflow at `.github/workflows/tauri-build.yml` that builds the desktop app for both macOS and Windows on every push to `main`.
+
+- macOS output: `src-tauri/target/release/bundle/macos/`
+- Windows output: `src-tauri/target/release/bundle/msi/`
+
+To use it:
+
+1. Push your branch to GitHub.
+2. Open the `Actions` tab in your repo.
+3. Download the `macos-release` and `windows-release` artifacts from the workflow run.
+
+You can also build locally with:
+
+```bash
+npm install
+npx tauri build
+```

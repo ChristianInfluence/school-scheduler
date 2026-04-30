@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import html2pdf from "html2pdf.js";
 import {
   Plus,
   Trash2,
@@ -15,6 +16,13 @@ import {
   History,
   RotateCcw,
   Printer,
+  Download,
+  Upload,
+  User,
+  Users,
+  FileText,
+  Briefcase,
+  ChevronLeft,
 } from "lucide-react";
 
 function Button({ children, className = "", variant, disabled, ...props }) {
@@ -60,19 +68,19 @@ const SEMESTERS = ["Semester 1", "Semester 2"];
 const GRADE_OPTIONS = ["6", "7", "8", "9", "10", "11", "12"];
 
 const initialPeriodTimes = {
-  1: "8:15–9:00",
-  2: "9:05–9:50",
-  3: "9:55–10:40",
-  4: "10:45–11:30",
-  5: "12:05–12:50",
-  6: "12:55–1:40",
-  7: "1:45–2:30",
-  8: "2:35–3:20",
+  1: "8:00–8:46",
+  2: "8:48.5–9:34.5",
+  3: "9:37–10:23",
+  4: "10:25–11:11.5",
+  5: "11:54–12:40",
+  6: "12:42.5–1:28.5",
+  7: "1:31–2:17",
+  8: "2:19.5–3:05",
 };
 
 const initialTeachers = [
   { id: "t1", name: "Mr. Conniry" },
-  { id: "t2", name: "Mrs. Keith" },
+  { id: "t2", name: "Ms. Keith" },
   { id: "t3", name: "Mr. Cota" },
 ];
 
@@ -87,6 +95,11 @@ const blockTemplates = [
     name: "No Class / Unavailable",
     color: "bg-slate-800 border-slate-500 text-slate-50",
   },
+  {
+    blockType: "professional-duties",
+    name: "Professional Duties",
+    color: "bg-purple-950 border-purple-500 text-purple-50",
+  },
 ];
 
 const initialClasses = [
@@ -99,6 +112,7 @@ const initialClasses = [
     color: "bg-blue-950 border-blue-500 text-blue-50",
     checkGradeConflicts: true,
     checkRoomConflicts: true,
+    fullYear: false,
     notes: "",
     placements: { "Semester 1": null, "Semester 2": null },
   },
@@ -111,6 +125,7 @@ const initialClasses = [
     color: "bg-amber-950 border-amber-500 text-amber-50",
     checkGradeConflicts: true,
     checkRoomConflicts: true,
+    fullYear: false,
     notes: "",
     placements: { "Semester 1": null, "Semester 2": null },
   },
@@ -124,7 +139,13 @@ const initialState = {
   appSettings: {
     title: "WVCS Master Scheduler",
     subtitle: "Build next year’s schedule by teacher, period, room, and semester.",
-    logoUrl: "",
+    logoUrl: "/warrior-head.png",
+    lunch: {
+      enabled: true,
+      time: "11:11.5–11:51.5",
+      afterPeriod: 4,
+      beforePeriod: 5,
+    },
   },
 };
 
@@ -135,6 +156,10 @@ const colorOptions = [
   { label: "Purple", value: "bg-purple-950 border-purple-500 text-purple-50" },
   { label: "Pink", value: "bg-pink-950 border-pink-500 text-pink-50" },
   { label: "Gray", value: "bg-slate-800 border-slate-500 text-slate-50" },
+  { label: "Teal", value: "bg-teal-950 border-teal-500 text-teal-50" },
+  { label: "Rose", value: "bg-rose-950 border-rose-500 text-rose-50" },
+  { label: "Lime", value: "bg-lime-950 border-lime-500 text-lime-50" },
+  { label: "Orange", value: "bg-orange-950 border-orange-500 text-orange-50" },
 ];
 
 function getInitialWorkingState() {
@@ -165,6 +190,7 @@ function blankClass() {
     color: "bg-slate-800 border-slate-500 text-slate-50",
     checkGradeConflicts: true,
     checkRoomConflicts: true,
+    fullYear: false,
     notes: "",
     placements: { "Semester 1": null, "Semester 2": null },
   };
@@ -230,21 +256,38 @@ function BlockTemplateCard({ template }) {
 }
 
 function ScheduleBlockCard({ block, onRemove }) {
-  const Icon = block.blockType === "prep" ? Coffee : Ban;
+  const getIcon = () => {
+    switch (block.blockType) {
+      case "office":
+        return <User size={15} />;
+      case "meeting":
+        return <Users size={15} />;
+      case "prep":
+        return <Coffee size={15} />;
+      case "professional-duties":
+        return <Briefcase size={15} />; // Use Briefcase icon for professional duties
+      default:
+        return <Ban size={15} />;
+    }
+  };
 
   return (
     <div className={`print-card group rounded-xl border p-2 shadow-sm ${block.color}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 font-semibold text-sm">
-            <Icon size={15} />
+            {getIcon()}
             {block.name}
           </div>
-          <div className="mt-1 text-xs opacity-80">Blocked schedule time</div>
+          <div className="mt-1 text-xs opacity-80">
+            {block.blockType === "lunch" ? "Shared lunch period" : "Blocked schedule time"}
+          </div>
         </div>
         <button
           onClick={() => onRemove(block.id)}
-          className="no-print rounded-md p-1 opacity-0 group-hover:opacity-100 hover:bg-white/20"
+          className={`no-print rounded-md p-1 opacity-0 group-hover:opacity-100 hover:bg-white/20 ${
+            block.blockType === "lunch" ? "hidden" : ""
+          }`}
         >
           <Trash2 size={14} />
         </button>
@@ -262,10 +305,18 @@ export default function MasterSchoolSchedulerPrototype() {
   const [semester, setSemester] = useState("Semester 1");
   const [editingClass, setEditingClass] = useState(null);
   const [newTeacherName, setNewTeacherName] = useState("");
+  const [editingTeacherId, setEditingTeacherId] = useState(null);
+  const [editingTeacherName, setEditingTeacherName] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const fileInputRef = useRef(null);
+  const classImportRef = useRef(null);
 
   const { teachers, classes, scheduleBlocks, periodTimes, appSettings } = workingState;
+  const sidebarGridClass = sidebarHidden
+    ? "grid gap-4 grid-cols-1 print:block"
+    : "grid gap-4 lg:grid-cols-[300px_1fr] print:block";
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(workingState));
@@ -321,6 +372,460 @@ export default function MasterSchoolSchedulerPrototype() {
   function deleteVersion(versionId) {
     if (!confirm("Delete this saved version?")) return;
     setVersions((prev) => prev.filter((v) => v.id !== versionId));
+  }
+
+  function parseCsv(text) {
+    const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const rows = [];
+    let row = [];
+    let field = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < normalized.length; i += 1) {
+      const char = normalized[i];
+      const next = normalized[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && next === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (char === ',' && !inQuotes) {
+        row.push(field);
+        field = "";
+        continue;
+      }
+
+      if (char === '\n' && !inQuotes) {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+        continue;
+      }
+
+      field += char;
+    }
+
+    if (field !== "" || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+
+    return rows.filter((r, index) => index === 0 || r.some((cell) => cell.trim() !== ""));
+  }
+
+  function normalizeCsvKey(header) {
+    return header
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_");
+  }
+
+  function parseBoolean(value, defaultValue = true) {
+    if (value === undefined || value === null || value === "") return defaultValue;
+    const normalized = String(value).trim().toLowerCase();
+    return ["true", "yes", "y", "1", "on"].includes(normalized);
+  }
+
+  function parseGrades(value) {
+    if (!value) return [];
+    return String(value)
+      .split(/[,;|]+/)
+      .map((grade) => grade.trim())
+      .filter(Boolean);
+  }
+
+  function importClasses(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const filename = file.name.toLowerCase();
+
+        if (!filename.endsWith(".csv")) {
+          alert("Class import only accepts CSV files.");
+          return;
+        }
+
+        const rows = parseCsv(text);
+        if (rows.length < 2) {
+          alert("CSV must include a header row and at least one data row.");
+          return;
+        }
+
+        const headers = rows[0].map(normalizeCsvKey);
+        const parsedClasses = rows.slice(1).map((row, rowIndex) => {
+          const record = headers.reduce((acc, key, index) => {
+            acc[key] = row[index] ? row[index].trim() : "";
+            return acc;
+          }, {});
+
+          const semesterType = normalizeSemester(record.semester || record.term || "");
+          return {
+            id: crypto.randomUUID(),
+            name: record.name || `Class ${rowIndex + 1}`,
+            subject: record.subject || "",
+            grades: parseGrades(record.grades),
+            room: record.room || "",
+            color: mapColorValue(record.color),
+            checkGradeConflicts: parseBoolean(record.checkgradeconflicts, true),
+            checkRoomConflicts: parseBoolean(record.checkroomconflicts, true),
+            fullYear: semesterType === "all_year",
+            notes: record.notes || "",
+            placements: { "Semester 1": null, "Semester 2": null },
+          };
+        });
+
+        if (!parsedClasses.length) {
+          alert("No valid class rows were found in the CSV file.");
+          return;
+        }
+
+        commit((state) => ({
+          ...state,
+          classes: [...parsedClasses, ...state.classes],
+        }));
+        alert(`Imported ${parsedClasses.length} classes from CSV.`);
+      } catch (err) {
+        alert(`Failed to import classes: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+
+    if (classImportRef.current) {
+      classImportRef.current.value = "";
+    }
+  }
+
+  function mapColorValue(value) {
+    if (!value) return "bg-slate-800 border-slate-500 text-slate-50";
+
+    const normalizedValue = String(value).trim();
+    const lookupLabel = normalizedValue.toLowerCase();
+    const foundOption = colorOptions.find(
+      (option) => option.label.toLowerCase() === lookupLabel || option.value === normalizedValue
+    );
+    return foundOption ? foundOption.value : normalizedValue;
+  }
+
+  function normalizeSemester(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized.includes("all") || normalized.includes("year")) return "all_year";
+    if (normalized.includes("first") || normalized.includes("1")) return "semester_1";
+    if (normalized.includes("second") || normalized.includes("2")) return "semester_2";
+    return "semester_1";
+  }
+
+  function exportSchedule() {
+    const scheduleName = appSettings.title || "schedule";
+    const timestamp = new Date().toISOString().split("T")[0];
+    const filename = `${scheduleName}-${timestamp}.json`;
+
+    const dataStr = JSON.stringify(workingState, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function importSchedule(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const filename = file.name.toLowerCase();
+
+        if (filename.endsWith(".csv")) {
+          const rows = parseCsv(text);
+          if (rows.length < 2) {
+            alert("CSV must include a header row and at least one data row.");
+            return;
+          }
+
+          const headers = rows[0].map(normalizeCsvKey);
+          const parsedClasses = rows.slice(1).map((row, rowIndex) => {
+            const record = headers.reduce((acc, key, index) => {
+              acc[key] = row[index] ? row[index].trim() : "";
+              return acc;
+            }, {});
+
+            const semesterType = normalizeSemester(record.semester || record.term || "");
+            return {
+              id: crypto.randomUUID(),
+              name: record.name || `Class ${rowIndex + 1}`,
+              subject: record.subject || "",
+              grades: parseGrades(record.grades),
+              room: record.room || "",
+              color: mapColorValue(record.color),
+              checkGradeConflicts: parseBoolean(record.checkgradeconflicts, true),
+              checkRoomConflicts: parseBoolean(record.checkroomconflicts, true),
+              fullYear: semesterType === "all_year",
+              notes: record.notes || "",
+              placements: { "Semester 1": null, "Semester 2": null },
+            };
+          });
+
+          if (!parsedClasses.length) {
+            alert("No valid class rows were found in the CSV file.");
+            return;
+          }
+
+          commit((state) => ({
+            ...state,
+            classes: [...parsedClasses, ...state.classes],
+          }));
+          alert(`Imported ${parsedClasses.length} classes from CSV.`);
+          return;
+        }
+
+        const imported = JSON.parse(text);
+
+        if (!imported.teachers || !imported.classes || !imported.scheduleBlocks || !imported.periodTimes) {
+          alert("Invalid schedule file. Missing required data.");
+          return;
+        }
+
+        if (!confirm("Load this schedule? Your current working schedule will be replaced.")) {
+          return;
+        }
+
+        commit(() => imported);
+        alert("Schedule imported successfully!");
+      } catch (error) {
+        alert(`Failed to import schedule: ${error.message}`);
+      }
+    };
+    reader.readAsText(file);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function exportPDF() {
+    const scheduleName = appSettings.title || "schedule";
+    const timestamp = new Date().toISOString().split("T")[0];
+    const filename = `${scheduleName}-${timestamp}.pdf`;
+    
+    // Create clean HTML structure for PDF
+    const html = document.createElement("div");
+    html.style.padding = "15px";
+    html.style.fontFamily = "Arial, sans-serif";
+    html.style.backgroundColor = "#ffffff";
+    html.style.color = "#000000";
+    
+    // Header - more compact layout
+    const header = document.createElement("div");
+    header.style.marginBottom = "15px";
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "15px";
+    header.style.borderBottom = "2px solid #333";
+    header.style.paddingBottom = "8px";
+    
+    // Add logo if available - positioned inline with title
+    if (appSettings.logoUrl) {
+      const logoImg = document.createElement("img");
+      logoImg.src = appSettings.logoUrl;
+      logoImg.alt = "School Logo";
+      logoImg.style.height = "60px";
+      logoImg.style.width = "60px";
+      logoImg.style.objectFit = "contain";
+      logoImg.style.borderRadius = "6px";
+      header.appendChild(logoImg);
+    }
+    
+    // Title and subtitle container
+    const titleContainer = document.createElement("div");
+    titleContainer.style.flex = "1";
+    
+    const title = document.createElement("h1");
+    title.textContent = appSettings.title || "School Schedule";
+    title.style.margin = "0 0 3px 0";
+    title.style.fontSize = "22px";
+    
+    const subtitle = document.createElement("p");
+    subtitle.textContent = appSettings.subtitle || "";
+    subtitle.style.margin = "0";
+    subtitle.style.fontSize = "11px";
+    subtitle.style.color = "#666";
+    
+    titleContainer.appendChild(title);
+    if (appSettings.subtitle) titleContainer.appendChild(subtitle);
+    header.appendChild(titleContainer);
+    
+    html.appendChild(header);
+    
+    // Schedule table
+    const table = document.createElement("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    table.style.fontSize = "10px"; // Reduced from 11px
+    
+    // Header row with teacher names
+    const headerRow = document.createElement("tr");
+    const periodHeader = document.createElement("th");
+    periodHeader.textContent = "Period";
+    periodHeader.style.border = "1px solid #999";
+    periodHeader.style.padding = "6px"; // Reduced from 8px
+    periodHeader.style.backgroundColor = "#f0f0f0";
+    periodHeader.style.fontWeight = "bold";
+    periodHeader.style.textAlign = "left";
+    headerRow.appendChild(periodHeader);
+    
+    teachers.forEach((teacher) => {
+      const th = document.createElement("th");
+      th.textContent = teacher.name;
+      th.style.border = "1px solid #999";
+      th.style.padding = "6px"; // Reduced from 8px
+      th.style.backgroundColor = "#f0f0f0";
+      th.style.fontWeight = "bold";
+      th.style.textAlign = "left";
+      headerRow.appendChild(th);
+    });
+    table.appendChild(headerRow);
+    
+    // Data rows for each period
+    PERIODS.forEach((period) => {
+      const row = document.createElement("tr");
+      
+      const periodCell = document.createElement("td");
+      periodCell.style.border = "1px solid #999";
+      periodCell.style.padding = "6px"; // Reduced from 8px
+      periodCell.style.backgroundColor = "#f9f9f9";
+      periodCell.style.fontWeight = "bold";
+      periodCell.style.verticalAlign = "top";
+      
+      const periodText = document.createElement("div");
+      periodText.textContent = `Period ${period}`;
+      periodCell.appendChild(periodText);
+      
+      const timeText = document.createElement("div");
+      timeText.textContent = periodTimes[period] || "";
+      timeText.style.fontSize = "10px";
+      timeText.style.color = "#666";
+      periodCell.appendChild(timeText);
+      
+      row.appendChild(periodCell);
+      
+      teachers.forEach((teacher) => {
+        const cell = document.createElement("td");
+        cell.style.border = "1px solid #999";
+        cell.style.padding = "6px"; // Reduced from 8px
+        cell.style.verticalAlign = "top";
+        cell.style.minHeight = "50px"; // Reduced from 60px
+        
+        // Find classes and blocks for this cell
+        const classesInCell = classes.filter(
+          (c) =>
+            c.placements[semester]?.teacherId === teacher.id &&
+            c.placements[semester]?.period === period
+        );
+        
+        const blocksInCell = scheduleBlocks.filter(
+          (b) => b.semester === semester && b.teacherId === teacher.id && b.period === period
+        );
+        
+        // Add classes
+        classesInCell.forEach((cls) => {
+          const classDiv = document.createElement("div");
+          classDiv.style.marginBottom = "4px";
+          classDiv.style.padding = "4px";
+          classDiv.style.backgroundColor = "#e8f4f8";
+          classDiv.style.border = "1px solid #4a9eff";
+          classDiv.style.borderRadius = "2px";
+          classDiv.style.fontSize = "10px";
+          classDiv.style.lineHeight = "1.3";
+          
+          const className = document.createElement("div");
+          className.textContent = cls.name;
+          className.style.fontWeight = "bold";
+          className.style.fontSize = "11px";
+          classDiv.appendChild(className);
+          
+          if (cls.subject) {
+            const subject = document.createElement("div");
+            subject.textContent = cls.subject;
+            subject.style.fontSize = "9px";
+            subject.style.color = "#666";
+            classDiv.appendChild(subject);
+          }
+          
+          if (cls.room) {
+            const room = document.createElement("div");
+            room.textContent = `Room: ${cls.room}`;
+            room.style.fontSize = "9px";
+            room.style.color = "#666";
+            classDiv.appendChild(room);
+          }
+          
+          cell.appendChild(classDiv);
+        });
+        
+        // Add blocks (prep, unavailable)
+        blocksInCell.forEach((block) => {
+          const blockDiv = document.createElement("div");
+          blockDiv.textContent = block.name;
+          blockDiv.style.padding = "4px";
+          blockDiv.style.backgroundColor = "#f0f0f0";
+          blockDiv.style.border = "1px solid #ccc";
+          blockDiv.style.borderRadius = "2px";
+          blockDiv.style.fontSize = "10px";
+          blockDiv.style.fontStyle = "italic";
+          blockDiv.style.marginBottom = "4px";
+          cell.appendChild(blockDiv);
+        });
+        
+        row.appendChild(cell);
+      });
+      
+      table.appendChild(row);
+    });
+    
+    html.appendChild(table);
+    
+    // Add footer
+    const footer = document.createElement("div");
+    footer.style.marginTop = "20px";
+    footer.style.fontSize = "10px";
+    footer.style.color = "#666";
+    footer.textContent = `Generated on ${new Date().toLocaleString()} | Semester: ${semester}`;
+    html.appendChild(footer);
+    
+    const opt = {
+      margin: [8, 8, 8, 8], // Reduced margins: top, right, bottom, left
+      filename: filename,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, backgroundColor: "#ffffff" },
+      jsPDF: { orientation: "landscape", unit: "mm", format: "a4" },
+    };
+
+    html2pdf()
+      .set(opt)
+      .from(html)
+      .save()
+      .catch((error) => {
+        alert("Error exporting PDF: " + error.message);
+      });
   }
 
   function renameVersion(versionId) {
@@ -383,7 +888,7 @@ export default function MasterSchoolSchedulerPrototype() {
     }
 
     return conflicts;
-  }, [placedClasses, semester]);
+  }, [placedClasses, semester, appSettings.lunch]);
 
   const unscheduled = classes.filter((c) => !c.placements[semester]);
   const conflictList = Array.from(conflictMap.entries());
@@ -410,10 +915,15 @@ export default function MasterSchoolSchedulerPrototype() {
         c.id === classId
           ? {
               ...c,
-              placements: {
-                ...c.placements,
-                [semester]: { teacherId, period },
-              },
+              placements: c.fullYear
+                ? {
+                    "Semester 1": { teacherId, period },
+                    "Semester 2": { teacherId, period },
+                  }
+                : {
+                    ...c.placements,
+                    [semester]: { teacherId, period },
+                  },
             }
           : c
       ),
@@ -424,7 +934,14 @@ export default function MasterSchoolSchedulerPrototype() {
     commit((state) => ({
       ...state,
       classes: state.classes.map((c) =>
-        c.id === classId ? { ...c, placements: { ...c.placements, [semester]: null } } : c
+        c.id === classId
+          ? {
+              ...c,
+              placements: c.fullYear
+                ? { "Semester 1": null, "Semester 2": null }
+                : { ...c.placements, [semester]: null },
+            }
+          : c
       ),
     }));
   }
@@ -506,6 +1023,27 @@ export default function MasterSchoolSchedulerPrototype() {
     }));
   }
 
+  function startEditingTeacher(teacher) {
+    setEditingTeacherId(teacher.id);
+    setEditingTeacherName(teacher.name);
+  }
+
+  function saveTeacherEdit(teacherId) {
+    const name = editingTeacherName.trim();
+    if (!name) return;
+    commit((state) => ({
+      ...state,
+      teachers: state.teachers.map((t) => (t.id === teacherId ? { ...t, name } : t)),
+    }));
+    setEditingTeacherId(null);
+    setEditingTeacherName("");
+  }
+
+  function cancelTeacherEdit() {
+    setEditingTeacherId(null);
+    setEditingTeacherName("");
+  }
+
   function updatePeriodTime(period, value) {
     commit((state) => ({
       ...state,
@@ -530,7 +1068,7 @@ export default function MasterSchoolSchedulerPrototype() {
               <img
                 src={appSettings.logoUrl}
                 alt="School Logo"
-                className="h-24 w-24 rounded-2xl object-contain bg-white p-2 shadow-sm border border-slate-300"
+                className="h-32 w-32 rounded-2xl object-contain shadow-sm"
               />
             )}
 
@@ -567,6 +1105,32 @@ export default function MasterSchoolSchedulerPrototype() {
               <History size={16} className="mr-1 inline" /> Versions
             </Button>
 
+            <Button variant="outline" onClick={exportSchedule}>
+              <Download size={16} className="mr-1 inline" /> Export
+            </Button>
+
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={16} className="mr-1 inline" /> Import
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,.csv"
+              onChange={importSchedule}
+              className="hidden"
+            />
+            <input
+              ref={classImportRef}
+              type="file"
+              accept=".csv"
+              onChange={importClasses}
+              className="hidden"
+            />
+
+            <Button variant="outline" onClick={exportPDF}>
+              <FileText size={16} className="mr-1 inline" /> PDF
+            </Button>
+
             <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings size={16} className="mr-1 inline" /> Settings
             </Button>
@@ -588,6 +1152,8 @@ export default function MasterSchoolSchedulerPrototype() {
                           <div key={`${classId}-${index}`}>
                             {conflict.type === "grade"
                               ? `${cls?.name} conflicts with ${conflict.with} in Period ${conflict.period} for grade(s) ${conflict.grades.join(", ")}.`
+                              : conflict.type === "lunch"
+                              ? `${cls?.name} cannot be scheduled in Period ${conflict.period} because of ${conflict.with}.`
                               : `${cls?.name} conflicts with ${conflict.with} in Period ${conflict.period} because both use room ${conflict.room}.`}
                           </div>
                         ));
@@ -600,19 +1166,59 @@ export default function MasterSchoolSchedulerPrototype() {
           )}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[300px_1fr] print:block">
-          <aside className="no-print space-y-4">
-            <Card className="shadow-xl">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-white">Unscheduled Classes</h2>
-                  <Button onClick={addClass}>
-                    <Plus size={16} className="mr-1 inline" /> Class
-                  </Button>
-                </div>
+        {sidebarHidden && (
+          <button
+            type="button"
+            aria-label="Show sidebar"
+            className="fixed left-0 top-1/2 z-50 -translate-y-1/2 rounded-r-full border border-slate-600 bg-slate-900 p-2 text-slate-100 shadow-xl transition hover:bg-slate-800 print:hidden"
+            onClick={() => setSidebarHidden(false)}
+          >
+            <ChevronLeft size={18} className="rotate-180" />
+          </button>
+        )}
+
+        <div className={sidebarGridClass}>
+            {!sidebarHidden && (
+              <aside className="no-print space-y-4">
+                <Card className="shadow-xl">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex flex-col gap-3">
+                      <h2 className="font-semibold text-white">Unscheduled Classes</h2>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
+                          onClick={() => setSidebarHidden(true)}
+                          aria-label="Hide sidebar"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <Button onClick={addClass}>
+                          <Plus size={16} className="mr-1 inline" /> Class
+                        </Button>
+                        <button
+                          type="button"
+                          title="View CSV template"
+                          aria-label="View CSV template"
+                          className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
+                          onClick={() => window.open("https://docs.google.com/spreadsheets/d/1D7EKSKdevSB9MmpLLv80lq8ug07j-_KxGkFUHhtbXRg/edit?usp=sharing", "_blank")}
+                        >
+                          <FileText size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Import classes from CSV only"
+                          aria-label="Import classes from CSV only"
+                          className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
+                          onClick={() => classImportRef.current?.click()}
+                        >
+                          <Upload size={16} />
+                        </button>
+                      </div>
+                    </div>
 
                 <div
-                  className="min-h-28 rounded-2xl border border-dashed border-slate-600 bg-slate-950 p-3 space-y-2"
+                  className="min-h-28 rounded-2xl border border-dashed border-slate-600 bg-slate-950 p-3"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     const raw = e.dataTransfer.getData("dragData");
@@ -622,15 +1228,17 @@ export default function MasterSchoolSchedulerPrototype() {
                   }}
                 >
                   {unscheduled.length ? (
-                    unscheduled.map((cls) => (
-                      <ClassCard
-                        key={cls.id}
-                        cls={cls}
-                        conflict={conflictMap.has(cls.id)}
-                        onEdit={setEditingClass}
-                        onRemove={removeClass}
-                      />
-                    ))
+                    <div className="grid grid-cols-2 gap-2">
+                      {unscheduled.map((cls) => (
+                        <ClassCard
+                          key={cls.id}
+                          cls={cls}
+                          conflict={conflictMap.has(cls.id)}
+                          onEdit={setEditingClass}
+                          onRemove={removeClass}
+                        />
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-sm text-slate-500">All classes are scheduled for {semester}.</div>
                   )}
@@ -669,12 +1277,60 @@ export default function MasterSchoolSchedulerPrototype() {
                   {teachers.map((teacher) => (
                     <div
                       key={teacher.id}
-                      className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                      className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm gap-2"
                     >
-                      <span>{teacher.name}</span>
-                      <button onClick={() => removeTeacher(teacher.id)} className="text-slate-500 hover:text-red-400">
-                        <Trash2 size={14} />
-                      </button>
+                      {editingTeacherId === teacher.id ? (
+                        <input
+                          type="text"
+                          value={editingTeacherName}
+                          onChange={(e) => setEditingTeacherName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveTeacherEdit(teacher.id);
+                            if (e.key === "Escape") cancelTeacherEdit();
+                          }}
+                          className="flex-1 rounded-lg bg-slate-800 border border-slate-600 px-2 py-1 text-slate-100 focus:outline-none focus:border-sky-400"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="flex-1">{teacher.name}</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        {editingTeacherId === teacher.id ? (
+                          <>
+                            <button
+                              onClick={() => saveTeacherEdit(teacher.id)}
+                              className="text-slate-500 hover:text-emerald-400 transition-colors"
+                              title="Save"
+                            >
+                              <Save size={14} />
+                            </button>
+                            <button
+                              onClick={cancelTeacherEdit}
+                              className="text-slate-500 hover:text-slate-300 transition-colors"
+                              title="Cancel"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEditingTeacher(teacher)}
+                              className="text-slate-500 hover:text-sky-400 transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => removeTeacher(teacher.id)}
+                              className="text-slate-500 hover:text-red-400 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -704,13 +1360,14 @@ export default function MasterSchoolSchedulerPrototype() {
               </CardContent>
             </Card>
           </aside>
+          )}
 
           <main className="screen-schedule overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-inner">
             <div
-              className="grid"
+              className="schedule-grid-wrapper grid"
               style={{
-                gridTemplateColumns: `130px repeat(${teachers.length}, 240px)`,
-                minWidth: `${130 + teachers.length * 240}px`,
+                gridTemplateColumns: `130px repeat(${teachers.length}, 160px)`,
+                minWidth: `${130 + teachers.length * 160}px`,
               }}
             >
               <div className="sticky left-0 top-0 z-30 border-b border-r border-slate-700 bg-slate-800 p-3 font-semibold text-white">
@@ -769,6 +1426,31 @@ export default function MasterSchoolSchedulerPrototype() {
                       </div>
                     );
                   })}
+
+                  {/* Insert lunch row after the specified period */}
+                  {appSettings.lunch?.enabled && period === appSettings.lunch.afterPeriod && (
+                    <React.Fragment key={`lunch-${period}`}>
+                      <div className="sticky left-0 z-10 border-b border-r border-green-700 bg-green-950 p-3 font-semibold text-green-50">
+                        <div className="flex items-center gap-2">
+                          <Clock size={16} />
+                          Lunch
+                        </div>
+                        <div className="mt-1 text-xs font-normal text-green-300">{appSettings.lunch.time}</div>
+                      </div>
+
+                      {teachers.map((teacher) => (
+                        <div
+                          key={`lunch-${teacher.id}-${period}`}
+                          className="min-h-16 border-b border-r border-green-800 bg-green-900/30 p-2"
+                        >
+                          <div className="flex flex-col items-center justify-center h-full text-green-200 text-sm font-medium">
+                            <div>Shared Lunch Period</div>
+                            <div className="mt-1 text-xs text-green-300">{appSettings.lunch.time}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </React.Fragment>
+                  )}
                 </React.Fragment>
               ))}
             </div>
@@ -794,47 +1476,67 @@ export default function MasterSchoolSchedulerPrototype() {
 
               <tbody>
                 {PERIODS.map((period) => (
-                  <tr key={period}>
-                    <td className="print-period">
-                      <div>Period {period}</div>
-                      <div className="print-period-time">{periodTimes[period]}</div>
-                    </td>
+                  <React.Fragment key={period}>
+                    <tr>
+                      <td className="print-period">
+                        <div>Period {period}</div>
+                        <div className="print-period-time">{periodTimes[period]}</div>
+                      </td>
 
-                    {teachers.map((teacher) => {
-                      const classesInCell = classes.filter(
-                        (c) =>
-                          c.placements[semester]?.teacherId === teacher.id &&
-                          c.placements[semester]?.period === period
-                      );
+                      {teachers.map((teacher) => {
+                        const classesInCell = classes.filter(
+                          (c) =>
+                            c.placements[semester]?.teacherId === teacher.id &&
+                            c.placements[semester]?.period === period
+                        );
 
-                      const blocksInCell = scheduleBlocks.filter(
-                        (b) =>
-                          b.semester === semester &&
-                          b.teacherId === teacher.id &&
-                          b.period === period
-                      );
+                        const blocksInCell = scheduleBlocks.filter(
+                          (b) =>
+                            b.semester === semester &&
+                            b.teacherId === teacher.id &&
+                            b.period === period
+                        );
 
-                      return (
-                        <td key={`${teacher.id}-${period}-print`}>
-                          {blocksInCell.map((block) => (
-                            <div key={block.id} className="print-entry">
-                              <div className="print-entry-title">{block.name}</div>
-                            </div>
-                          ))}
-
-                          {classesInCell.map((cls) => (
-                            <div key={cls.id} className="print-entry">
-                              <div className="print-entry-title">{cls.name}</div>
-                              <div className="print-entry-meta">
-                                {cls.room ? `Room ${cls.room}` : ""}
-                                {cls.grades?.length ? ` • Gr. ${cls.grades.join(",")}` : ""}
+                        return (
+                          <td key={`${teacher.id}-${period}-print`}>
+                            {blocksInCell.map((block) => (
+                              <div key={block.id} className="print-entry">
+                                <div className="print-entry-title">{block.name}</div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+
+                            {classesInCell.map((cls) => (
+                              <div key={cls.id} className="print-entry">
+                                <div className="print-entry-title">{cls.name}</div>
+                                <div className="print-entry-meta">
+                                  {cls.room ? `Room ${cls.room}` : ""}
+                                  {cls.grades?.length ? ` • Gr. ${cls.grades.join(",")}` : ""}
+                                </div>
+                              </div>
+                            ))}
+                          </td>
+                        );
+                      })}
+                    </tr>
+
+                    {/* Insert lunch row in PDF after the specified period */}
+                    {appSettings.lunch?.enabled && period === appSettings.lunch.afterPeriod && (
+                      <tr key={`lunch-${period}-pdf`} className="print-lunch-row">
+                        <td className="print-period print-lunch-cell">
+                          <div>Lunch</div>
+                          <div className="print-period-time">{appSettings.lunch.time}</div>
                         </td>
-                      );
-                    })}
-                  </tr>
+                        {teachers.map((teacher) => (
+                          <td key={`lunch-${teacher.id}-${period}-pdf`} className="print-lunch-cell">
+                            <div className="print-entry">
+                              <div className="print-entry-title">Shared Lunch Period</div>
+                              <div className="print-entry-meta">{appSettings.lunch.time}</div>
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -969,6 +1671,15 @@ function EditClassModal({ cls, onClose, onSave }) {
                 />
                 Check room conflicts
               </label>
+
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={draft.fullYear}
+                  onChange={(e) => setDraft({ ...draft, fullYear: e.target.checked })}
+                />
+                Full year class (appears in both semesters)
+              </label>
             </div>
           </div>
 
@@ -1034,6 +1745,68 @@ function SettingsModal({ settings, onClose, onSave }) {
               className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 font-normal text-slate-100 placeholder:text-slate-500"
             />
           </label>
+
+          <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-950/50 p-4">
+            <h3 className="font-semibold text-white">Lunch Settings</h3>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.lunch?.enabled ?? true}
+                onChange={(e) => setDraft({
+                  ...draft,
+                  lunch: { ...draft.lunch, enabled: e.target.checked }
+                })}
+                className="rounded border-slate-600 bg-slate-950 text-sky-500 focus:ring-sky-500"
+              />
+              Enable shared lunch period
+            </label>
+
+            <label className="space-y-1 text-sm font-medium text-slate-200 block">
+              Lunch Time
+              <input
+                placeholder="11:11.5–11:51.5"
+                value={draft.lunch?.time ?? "11:11.5–11:51.5"}
+                onChange={(e) => setDraft({
+                  ...draft,
+                  lunch: { ...draft.lunch, time: e.target.value }
+                })}
+                className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 font-normal text-slate-100 placeholder:text-slate-500"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="space-y-1 text-sm font-medium text-slate-200 block">
+                After Period
+                <input
+                  type="number"
+                  min="1"
+                  max="8"
+                  value={draft.lunch?.afterPeriod ?? 4}
+                  onChange={(e) => setDraft({
+                    ...draft,
+                    lunch: { ...draft.lunch, afterPeriod: parseInt(e.target.value) }
+                  })}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 font-normal text-slate-100"
+                />
+              </label>
+
+              <label className="space-y-1 text-sm font-medium text-slate-200 block">
+                Before Period
+                <input
+                  type="number"
+                  min="1"
+                  max="8"
+                  value={draft.lunch?.beforePeriod ?? 5}
+                  onChange={(e) => setDraft({
+                    ...draft,
+                    lunch: { ...draft.lunch, beforePeriod: parseInt(e.target.value) }
+                  })}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 font-normal text-slate-100"
+                />
+              </label>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>
