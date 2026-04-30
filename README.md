@@ -22,7 +22,7 @@ If you are developing a production application, we recommend using TypeScript wi
 This repo now includes a GitHub Actions workflow at `.github/workflows/tauri-build.yml` that builds the desktop app for both macOS and Windows on every push to `main`.
 
 - macOS output: `src-tauri/target/release/bundle/macos/`
-- Windows output: `src-tauri/target/release/bundle/msi/`
+- Windows output: `src-tauri/target/release/bundle/`
 
 To use it:
 
