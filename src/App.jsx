@@ -196,15 +196,22 @@ function blankClass() {
   };
 }
 
-function ClassCard({ cls, conflict, onEdit, onRemove }) {
+function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect }) {
   return (
     <div
       draggable
-      onDragStart={(e) =>
-        e.dataTransfer.setData("dragData", JSON.stringify({ kind: "class", id: cls.id }))
-      }
-      className={`print-card group rounded-xl border p-2 shadow-sm cursor-grab active:cursor-grabbing ${cls.color} ${
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect?.({ kind: "class", id: cls.id });
+      }}
+      onDragStart={(e) => {
+        onSelect?.({ kind: "class", id: cls.id });
+        e.dataTransfer.setData("dragData", JSON.stringify({ kind: "class", id: cls.id }));
+      }}
+      className={`print-card group rounded-xl border p-2 shadow-sm cursor-pointer active:cursor-grabbing ${cls.color} ${
         conflict ? "ring-2 ring-red-400" : ""
+      } ${
+        selected ? "ring-2 ring-emerald-300" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -220,10 +227,22 @@ function ClassCard({ cls, conflict, onEdit, onRemove }) {
         </div>
 
         <div className="no-print flex gap-1 opacity-0 group-hover:opacity-100 transition">
-          <button onClick={() => onEdit(cls)} className="rounded-md p-1 hover:bg-white/20">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(cls);
+            }}
+            className="rounded-md p-1 hover:bg-white/20"
+          >
             <Pencil size={14} />
           </button>
-          <button onClick={() => onRemove(cls.id)} className="rounded-md p-1 hover:bg-white/20">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(cls.id);
+            }}
+            className="rounded-md p-1 hover:bg-white/20"
+          >
             <Trash2 size={14} />
           </button>
         </div>
@@ -232,19 +251,23 @@ function ClassCard({ cls, conflict, onEdit, onRemove }) {
   );
 }
 
-function BlockTemplateCard({ template }) {
+function BlockTemplateCard({ template, selected, onSelect }) {
   const Icon = template.blockType === "prep" ? Coffee : Ban;
 
   return (
     <div
       draggable
-      onDragStart={(e) =>
+      onClick={() => onSelect?.({ kind: "block-template", blockType: template.blockType })}
+      onDragStart={(e) => {
+        onSelect?.({ kind: "block-template", blockType: template.blockType });
         e.dataTransfer.setData(
           "dragData",
           JSON.stringify({ kind: "block-template", blockType: template.blockType })
-        )
-      }
-      className={`rounded-xl border p-2 shadow-sm cursor-grab active:cursor-grabbing ${template.color}`}
+        );
+      }}
+      className={`rounded-xl border p-2 shadow-sm cursor-pointer active:cursor-grabbing ${template.color} ${
+        selected ? "ring-2 ring-emerald-300" : ""
+      }`}
     >
       <div className="flex items-center gap-2">
         <Icon size={16} />
@@ -253,6 +276,10 @@ function BlockTemplateCard({ template }) {
       <div className="mt-1 text-[11px] opacity-80">Reusable block</div>
     </div>
   );
+}
+
+function isTauriRuntime() {
+  return Boolean(window.__TAURI_INTERNALS__);
 }
 
 function ScheduleBlockCard({ block, onRemove }) {
@@ -310,6 +337,7 @@ export default function MasterSchoolSchedulerPrototype() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const fileInputRef = useRef(null);
   const classImportRef = useRef(null);
 
@@ -526,14 +554,8 @@ export default function MasterSchoolSchedulerPrototype() {
     return "semester_1";
   }
 
-  function exportSchedule() {
-    const scheduleName = appSettings.title || "schedule";
-    const timestamp = new Date().toISOString().split("T")[0];
-    const filename = `${scheduleName}-${timestamp}.json`;
-
-    const dataStr = JSON.stringify(workingState, null, 2);
-    const dataBlob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(dataBlob);
+  function downloadBlobInBrowser(blob, filename) {
+    const url = URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.href = url;
@@ -542,6 +564,45 @@ export default function MasterSchoolSchedulerPrototype() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  async function saveBlobToFile(blob, filename, filters) {
+    if (!isTauriRuntime()) {
+      downloadBlobInBrowser(blob, filename);
+      return;
+    }
+
+    const [{ save }, { writeFile }] = await Promise.all([
+      import("@tauri-apps/plugin-dialog"),
+      import("@tauri-apps/plugin-fs"),
+    ]);
+
+    const filePath = await save({
+      defaultPath: filename,
+      filters,
+    });
+
+    if (!filePath) return;
+
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    await writeFile(filePath, bytes);
+  }
+
+  async function exportSchedule() {
+    const scheduleName = appSettings.title || "schedule";
+    const timestamp = new Date().toISOString().split("T")[0];
+    const filename = `${scheduleName}-${timestamp}.json`;
+
+    const dataStr = JSON.stringify(workingState, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+
+    try {
+      await saveBlobToFile(dataBlob, filename, [
+        { name: "Schedule JSON", extensions: ["json"] },
+      ]);
+    } catch (error) {
+      alert("Error exporting schedule: " + error.message);
+    }
   }
 
   function importSchedule(event) {
@@ -904,7 +965,7 @@ export default function MasterSchoolSchedulerPrototype() {
     }, 300);
   }
 
-  function exportPDF() {
+  async function exportPDF() {
     const scheduleName = appSettings.title || "schedule";
     const timestamp = new Date().toISOString().split("T")[0];
     const filename = `${scheduleName}-${timestamp}.pdf`;
@@ -918,13 +979,14 @@ export default function MasterSchoolSchedulerPrototype() {
       jsPDF: { orientation: "landscape", unit: "mm", format: "letter" },
     };
 
-    html2pdf()
-      .set(opt)
-      .from(html)
-      .save()
-      .catch((error) => {
-        alert("Error exporting PDF: " + error.message);
-      });
+    try {
+      const pdfBlob = await html2pdf().set(opt).from(html).outputPdf("blob");
+      await saveBlobToFile(pdfBlob, filename, [
+        { name: "PDF", extensions: ["pdf"] },
+      ]);
+    } catch (error) {
+      alert("Error exporting PDF: " + error.message);
+    }
   }
 
   function renameVersion(versionId) {
@@ -1004,6 +1066,20 @@ export default function MasterSchoolSchedulerPrototype() {
 
     if (data.kind === "block-template") {
       addScheduleBlock(data.blockType, teacherId, period);
+    }
+  }
+
+  function placeSelectedItem(teacherId, period) {
+    if (!selectedItem) return;
+
+    if (selectedItem.kind === "class") {
+      placeClass(selectedItem.id, teacherId, period);
+      setSelectedItem(null);
+      return;
+    }
+
+    if (selectedItem.kind === "block-template") {
+      addScheduleBlock(selectedItem.blockType, teacherId, period);
     }
   }
 
@@ -1283,6 +1359,11 @@ export default function MasterSchoolSchedulerPrototype() {
                   <CardContent className="p-4 space-y-3">
                     <div className="flex flex-col gap-3">
                       <h2 className="font-semibold text-white">Unscheduled Classes</h2>
+                      <div className="text-xs text-slate-400">
+                        {selectedItem
+                          ? "Click a schedule cell to place the selected item."
+                          : "Click a class or block, then click a schedule cell."}
+                      </div>
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
@@ -1318,6 +1399,12 @@ export default function MasterSchoolSchedulerPrototype() {
 
                 <div
                   className="min-h-28 rounded-2xl border border-dashed border-slate-600 bg-slate-950 p-3"
+                  onClick={() => {
+                    if (selectedItem?.kind === "class") {
+                      unscheduleClass(selectedItem.id);
+                      setSelectedItem(null);
+                    }
+                  }}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     const raw = e.dataTransfer.getData("dragData");
@@ -1333,8 +1420,10 @@ export default function MasterSchoolSchedulerPrototype() {
                           key={cls.id}
                           cls={cls}
                           conflict={conflictMap.has(cls.id)}
+                          selected={selectedItem?.kind === "class" && selectedItem.id === cls.id}
                           onEdit={setEditingClass}
                           onRemove={removeClass}
+                          onSelect={setSelectedItem}
                         />
                       ))}
                     </div>
@@ -1350,7 +1439,15 @@ export default function MasterSchoolSchedulerPrototype() {
                 <h2 className="font-semibold text-white">Reusable Blocks</h2>
                 <div className="space-y-2">
                   {blockTemplates.map((template) => (
-                    <BlockTemplateCard key={template.blockType} template={template} />
+                    <BlockTemplateCard
+                      key={template.blockType}
+                      template={template}
+                      selected={
+                        selectedItem?.kind === "block-template" &&
+                        selectedItem.blockType === template.blockType
+                      }
+                      onSelect={setSelectedItem}
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -1503,7 +1600,10 @@ export default function MasterSchoolSchedulerPrototype() {
                     return (
                       <div
                         key={`${teacher.id}-${period}`}
-                        className="min-h-32 border-b border-r border-slate-800 p-2 transition hover:bg-slate-800/70"
+                        className={`min-h-32 border-b border-r border-slate-800 p-2 transition hover:bg-slate-800/70 ${
+                          selectedItem ? "cursor-copy bg-slate-800/30" : ""
+                        }`}
+                        onClick={() => placeSelectedItem(teacher.id, period)}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => handleDrop(e, teacher.id, period)}
                       >
@@ -1517,8 +1617,10 @@ export default function MasterSchoolSchedulerPrototype() {
                               key={cls.id}
                               cls={cls}
                               conflict={conflictMap.has(cls.id)}
+                              selected={selectedItem?.kind === "class" && selectedItem.id === cls.id}
                               onEdit={setEditingClass}
                               onRemove={removeClass}
+                              onSelect={setSelectedItem}
                             />
                           ))}
                         </div>
