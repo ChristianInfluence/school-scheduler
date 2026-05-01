@@ -621,19 +621,13 @@ export default function MasterSchoolSchedulerPrototype() {
     }
   }
 
-  function exportPDF() {
-    const scheduleName = appSettings.title || "schedule";
-    const timestamp = new Date().toISOString().split("T")[0];
-    const filename = `${scheduleName}-${timestamp}.pdf`;
-    
-    // Create clean HTML structure for PDF
+  function buildPrintableScheduleElement() {
     const html = document.createElement("div");
     html.style.padding = "15px";
     html.style.fontFamily = "Arial, sans-serif";
     html.style.backgroundColor = "#ffffff";
     html.style.color = "#000000";
     
-    // Header - more compact layout
     const header = document.createElement("div");
     header.style.marginBottom = "15px";
     header.style.display = "flex";
@@ -642,7 +636,6 @@ export default function MasterSchoolSchedulerPrototype() {
     header.style.borderBottom = "2px solid #333";
     header.style.paddingBottom = "8px";
     
-    // Add logo if available - positioned inline with title
     if (appSettings.logoUrl) {
       const logoImg = document.createElement("img");
       logoImg.src = appSettings.logoUrl;
@@ -654,7 +647,6 @@ export default function MasterSchoolSchedulerPrototype() {
       header.appendChild(logoImg);
     }
     
-    // Title and subtitle container
     const titleContainer = document.createElement("div");
     titleContainer.style.flex = "1";
     
@@ -675,13 +667,12 @@ export default function MasterSchoolSchedulerPrototype() {
     
     html.appendChild(header);
     
-    // Schedule table
     const table = document.createElement("table");
     table.style.width = "100%";
     table.style.borderCollapse = "collapse";
     table.style.fontSize = "10px"; // Reduced from 11px
+    table.style.tableLayout = "fixed";
     
-    // Header row with teacher names
     const headerRow = document.createElement("tr");
     const periodHeader = document.createElement("th");
     periodHeader.textContent = "Period";
@@ -704,7 +695,6 @@ export default function MasterSchoolSchedulerPrototype() {
     });
     table.appendChild(headerRow);
     
-    // Data rows for each period
     PERIODS.forEach((period) => {
       const row = document.createElement("tr");
       
@@ -734,7 +724,6 @@ export default function MasterSchoolSchedulerPrototype() {
         cell.style.verticalAlign = "top";
         cell.style.minHeight = "50px"; // Reduced from 60px
         
-        // Find classes and blocks for this cell
         const classesInCell = classes.filter(
           (c) =>
             c.placements[semester]?.teacherId === teacher.id &&
@@ -745,7 +734,6 @@ export default function MasterSchoolSchedulerPrototype() {
           (b) => b.semester === semester && b.teacherId === teacher.id && b.period === period
         );
         
-        // Add classes
         classesInCell.forEach((cls) => {
           const classDiv = document.createElement("div");
           classDiv.style.marginBottom = "4px";
@@ -781,7 +769,6 @@ export default function MasterSchoolSchedulerPrototype() {
           cell.appendChild(classDiv);
         });
         
-        // Add blocks (prep, unavailable)
         blocksInCell.forEach((block) => {
           const blockDiv = document.createElement("div");
           blockDiv.textContent = block.name;
@@ -799,17 +786,129 @@ export default function MasterSchoolSchedulerPrototype() {
       });
       
       table.appendChild(row);
+
+      if (appSettings.lunch?.enabled && period === appSettings.lunch.afterPeriod) {
+        const lunchRow = document.createElement("tr");
+
+        const lunchPeriodCell = document.createElement("td");
+        lunchPeriodCell.style.border = "1px solid #999";
+        lunchPeriodCell.style.padding = "6px";
+        lunchPeriodCell.style.backgroundColor = "#f0fdf4";
+        lunchPeriodCell.style.fontWeight = "bold";
+        lunchPeriodCell.style.verticalAlign = "top";
+
+        const lunchText = document.createElement("div");
+        lunchText.textContent = "Lunch";
+        lunchPeriodCell.appendChild(lunchText);
+
+        const lunchTimeText = document.createElement("div");
+        lunchTimeText.textContent = appSettings.lunch.time || "";
+        lunchTimeText.style.fontSize = "10px";
+        lunchTimeText.style.color = "#666";
+        lunchPeriodCell.appendChild(lunchTimeText);
+
+        lunchRow.appendChild(lunchPeriodCell);
+
+        teachers.forEach(() => {
+          const lunchCell = document.createElement("td");
+          lunchCell.style.border = "1px solid #999";
+          lunchCell.style.padding = "6px";
+          lunchCell.style.backgroundColor = "#f0fdf4";
+          lunchCell.style.verticalAlign = "top";
+
+          const lunchDiv = document.createElement("div");
+          lunchDiv.textContent = "Shared Lunch Period";
+          lunchDiv.style.padding = "4px";
+          lunchDiv.style.backgroundColor = "#dcfce7";
+          lunchDiv.style.border = "1px solid #86efac";
+          lunchDiv.style.borderRadius = "2px";
+          lunchDiv.style.fontSize = "10px";
+          lunchDiv.style.fontWeight = "bold";
+          lunchDiv.style.marginBottom = "4px";
+          lunchCell.appendChild(lunchDiv);
+
+          lunchRow.appendChild(lunchCell);
+        });
+
+        table.appendChild(lunchRow);
+      }
     });
     
     html.appendChild(table);
     
-    // Add footer
     const footer = document.createElement("div");
     footer.style.marginTop = "20px";
     footer.style.fontSize = "10px";
     footer.style.color = "#666";
     footer.textContent = `Generated on ${new Date().toLocaleString()} | Semester: ${semester}`;
     html.appendChild(footer);
+
+    return html;
+  }
+
+  function printSchedule() {
+    const printable = buildPrintableScheduleElement();
+    const printWindow = window.open("", "_blank", "width=1100,height=850");
+
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${appSettings.title || "School Schedule"}</title>
+          <base href="${window.location.href}">
+          <style>
+            @page {
+              size: letter landscape;
+              margin: 6mm;
+            }
+
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+
+            html,
+            body {
+              margin: 0;
+              background: #ffffff;
+            }
+
+            body {
+              padding: 0;
+            }
+
+            table,
+            tr,
+            td,
+            th {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+          </style>
+        </head>
+        <body>${printable.outerHTML}</body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 300);
+  }
+
+  function exportPDF() {
+    const scheduleName = appSettings.title || "schedule";
+    const timestamp = new Date().toISOString().split("T")[0];
+    const filename = `${scheduleName}-${timestamp}.pdf`;
+    const html = buildPrintableScheduleElement();
     
     const opt = {
       margin: [6, 6, 6, 6],
@@ -1097,7 +1196,7 @@ export default function MasterSchoolSchedulerPrototype() {
               <Save size={16} className="mr-1 inline" /> Save Version
             </Button>
 
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" onClick={printSchedule}>
               <Printer size={16} className="mr-1 inline" /> Print
             </Button>
 
