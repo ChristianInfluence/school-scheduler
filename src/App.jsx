@@ -23,6 +23,8 @@ import {
   FileText,
   Briefcase,
   ChevronLeft,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 
 function Button({ children, className = "", variant, disabled, ...props }) {
@@ -196,16 +198,19 @@ function blankClass() {
   };
 }
 
-function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect }) {
+function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect, onPointerDragStart }) {
+  const dragItem = { kind: "class", id: cls.id, label: cls.name, color: cls.color };
+
   return (
     <div
       draggable
+      onPointerDown={(e) => onPointerDragStart?.(e, dragItem)}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect?.({ kind: "class", id: cls.id });
+        onSelect?.(dragItem);
       }}
       onDragStart={(e) => {
-        onSelect?.({ kind: "class", id: cls.id });
+        onSelect?.(dragItem);
         e.dataTransfer.setData("dragData", JSON.stringify({ kind: "class", id: cls.id }));
       }}
       className={`print-card group rounded-xl border p-2 shadow-sm cursor-pointer active:cursor-grabbing ${cls.color} ${
@@ -251,15 +256,22 @@ function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect }) {
   );
 }
 
-function BlockTemplateCard({ template, selected, onSelect }) {
+function BlockTemplateCard({ template, selected, onSelect, onPointerDragStart }) {
   const Icon = template.blockType === "prep" ? Coffee : Ban;
+  const dragItem = {
+    kind: "block-template",
+    blockType: template.blockType,
+    label: template.name,
+    color: template.color,
+  };
 
   return (
     <div
       draggable
-      onClick={() => onSelect?.({ kind: "block-template", blockType: template.blockType })}
+      onPointerDown={(e) => onPointerDragStart?.(e, dragItem)}
+      onClick={() => onSelect?.(dragItem)}
       onDragStart={(e) => {
-        onSelect?.({ kind: "block-template", blockType: template.blockType });
+        onSelect?.(dragItem);
         e.dataTransfer.setData(
           "dragData",
           JSON.stringify({ kind: "block-template", blockType: template.blockType })
@@ -299,7 +311,10 @@ function ScheduleBlockCard({ block, onRemove }) {
   };
 
   return (
-    <div className={`print-card group rounded-xl border p-2 shadow-sm ${block.color}`}>
+    <div
+      className={`print-card group rounded-xl border p-2 shadow-sm ${block.color}`}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 font-semibold text-sm">
@@ -311,7 +326,10 @@ function ScheduleBlockCard({ block, onRemove }) {
           </div>
         </div>
         <button
-          onClick={() => onRemove(block.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(block.id);
+          }}
           className={`no-print rounded-md p-1 opacity-0 group-hover:opacity-100 hover:bg-white/20 ${
             block.blockType === "lunch" ? "hidden" : ""
           }`}
@@ -338,6 +356,8 @@ export default function MasterSchoolSchedulerPrototype() {
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [dragPreview, setDragPreview] = useState(null);
+  const [scheduleZoom, setScheduleZoom] = useState(0.85);
   const fileInputRef = useRef(null);
   const classImportRef = useRef(null);
 
@@ -358,6 +378,14 @@ export default function MasterSchoolSchedulerPrototype() {
     setUndoStack((prev) => [...prev, workingState]);
     setRedoStack([]);
     setWorkingState((prev) => updateFn(prev));
+  }
+
+  function clampScheduleZoom(value) {
+    return Math.min(1.1, Math.max(0.65, Number(value)));
+  }
+
+  function adjustScheduleZoom(delta) {
+    setScheduleZoom((current) => clampScheduleZoom(Number((current + delta).toFixed(2))));
   }
 
   function undo() {
@@ -586,6 +614,23 @@ export default function MasterSchoolSchedulerPrototype() {
 
     const bytes = new Uint8Array(await blob.arrayBuffer());
     await writeFile(filePath, bytes);
+  }
+
+  async function openTemplateLink() {
+    const templateUrl =
+      "https://docs.google.com/spreadsheets/d/1D7EKSKdevSB9MmpLLv80lq8ug07j-_KxGkFUHhtbXRg/edit?usp=sharing";
+
+    try {
+      if (isTauriRuntime()) {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(templateUrl);
+        return;
+      }
+
+      window.open(templateUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      alert("Unable to open the template link: " + error.message);
+    }
   }
 
   async function exportSchedule() {
@@ -1049,7 +1094,7 @@ export default function MasterSchoolSchedulerPrototype() {
     }
 
     return conflicts;
-  }, [placedClasses, semester, appSettings.lunch]);
+  }, [placedClasses, semester]);
 
   const unscheduled = classes.filter((c) => !c.placements[semester]);
   const conflictList = Array.from(conflictMap.entries());
@@ -1069,19 +1114,78 @@ export default function MasterSchoolSchedulerPrototype() {
     }
   }
 
-  function placeSelectedItem(teacherId, period) {
-    if (!selectedItem) return;
+  function placeItem(item, teacherId, period) {
+    if (!item) return;
 
-    if (selectedItem.kind === "class") {
-      placeClass(selectedItem.id, teacherId, period);
+    if (item.kind === "class") {
+      placeClass(item.id, teacherId, period);
       setSelectedItem(null);
       return;
     }
 
-    if (selectedItem.kind === "block-template") {
-      addScheduleBlock(selectedItem.blockType, teacherId, period);
+    if (item.kind === "block-template") {
+      addScheduleBlock(item.blockType, teacherId, period);
     }
   }
+
+  function placeSelectedItem(teacherId, period) {
+    placeItem(selectedItem, teacherId, period);
+  }
+
+  function handlePointerDragStart(e, item) {
+    if (e.button !== 0 || e.target.closest("button, input, textarea, select")) return;
+
+    setSelectedItem(item);
+    setDragPreview({
+      item,
+      x: e.clientX,
+      y: e.clientY,
+      startedAt: { x: e.clientX, y: e.clientY },
+    });
+  }
+
+  useEffect(() => {
+    if (!dragPreview) return undefined;
+
+    function handlePointerMove(e) {
+      setDragPreview((current) => (current ? { ...current, x: e.clientX, y: e.clientY } : current));
+    }
+
+    function handlePointerUp(e) {
+      const current = dragPreview;
+      setDragPreview(null);
+      if (!current) return;
+
+      const moved = Math.hypot(
+        e.clientX - current.startedAt.x,
+        e.clientY - current.startedAt.y
+      );
+      if (moved < 8) return;
+
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const cell = target?.closest("[data-schedule-cell='true']");
+      if (cell) {
+        placeItem(current.item, cell.dataset.teacherId, Number(cell.dataset.period));
+        return;
+      }
+
+      const unscheduledDrop = target?.closest("[data-unscheduled-drop='true']");
+      if (unscheduledDrop && current.item.kind === "class") {
+        unscheduleClass(current.item.id);
+        setSelectedItem(null);
+      }
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  // The pointer listener only lives for one drag gesture and should use the gesture snapshot.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragPreview]);
 
   function placeClass(classId, teacherId, period) {
     commit((state) => ({
@@ -1381,7 +1485,7 @@ export default function MasterSchoolSchedulerPrototype() {
                           title="View CSV template"
                           aria-label="View CSV template"
                           className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
-                          onClick={() => window.open("https://docs.google.com/spreadsheets/d/1D7EKSKdevSB9MmpLLv80lq8ug07j-_KxGkFUHhtbXRg/edit?usp=sharing", "_blank")}
+                          onClick={openTemplateLink}
                         >
                           <FileText size={16} />
                         </button>
@@ -1398,6 +1502,7 @@ export default function MasterSchoolSchedulerPrototype() {
                     </div>
 
                 <div
+                  data-unscheduled-drop="true"
                   className="min-h-28 rounded-2xl border border-dashed border-slate-600 bg-slate-950 p-3"
                   onClick={() => {
                     if (selectedItem?.kind === "class") {
@@ -1424,6 +1529,7 @@ export default function MasterSchoolSchedulerPrototype() {
                           onEdit={setEditingClass}
                           onRemove={removeClass}
                           onSelect={setSelectedItem}
+                          onPointerDragStart={handlePointerDragStart}
                         />
                       ))}
                     </div>
@@ -1447,6 +1553,7 @@ export default function MasterSchoolSchedulerPrototype() {
                         selectedItem.blockType === template.blockType
                       }
                       onSelect={setSelectedItem}
+                      onPointerDragStart={handlePointerDragStart}
                     />
                   ))}
                 </div>
@@ -1558,12 +1665,50 @@ export default function MasterSchoolSchedulerPrototype() {
           </aside>
           )}
 
-          <main className="screen-schedule overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-inner">
+          <main className="screen-schedule rounded-2xl border border-slate-700 bg-slate-900 shadow-inner">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-200">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-600 bg-slate-800 p-2 hover:bg-slate-700"
+                  onClick={() => adjustScheduleZoom(-0.1)}
+                  aria-label="Zoom out"
+                  title="Zoom out"
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <input
+                  type="range"
+                  min="0.65"
+                  max="1.1"
+                  step="0.05"
+                  value={scheduleZoom}
+                  onChange={(e) => setScheduleZoom(clampScheduleZoom(e.target.value))}
+                  className="w-28 accent-sky-400"
+                  aria-label="Schedule zoom"
+                />
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-600 bg-slate-800 p-2 hover:bg-slate-700"
+                  onClick={() => adjustScheduleZoom(0.1)}
+                  aria-label="Zoom in"
+                  title="Zoom in"
+                >
+                  <ZoomIn size={16} />
+                </button>
+                <span className="w-12 text-xs text-slate-400">{Math.round(scheduleZoom * 100)}%</span>
+              </div>
+              <Button variant="outline" className="py-1.5" onClick={() => setScheduleZoom(0.85)}>
+                Fit
+              </Button>
+            </div>
+            <div className="overflow-auto">
             <div
               className="schedule-grid-wrapper grid"
               style={{
-                gridTemplateColumns: `130px repeat(${teachers.length}, 160px)`,
-                minWidth: `${130 + teachers.length * 160}px`,
+                gridTemplateColumns: `110px repeat(${teachers.length}, 132px)`,
+                minWidth: `${(110 + teachers.length * 132) * scheduleZoom}px`,
+                zoom: scheduleZoom,
               }}
             >
               <div className="sticky left-0 top-0 z-30 border-b border-r border-slate-700 bg-slate-800 p-3 font-semibold text-white">
@@ -1600,7 +1745,10 @@ export default function MasterSchoolSchedulerPrototype() {
                     return (
                       <div
                         key={`${teacher.id}-${period}`}
-                        className={`min-h-32 border-b border-r border-slate-800 p-2 transition hover:bg-slate-800/70 ${
+                        data-schedule-cell="true"
+                        data-teacher-id={teacher.id}
+                        data-period={period}
+                        className={`min-h-28 border-b border-r border-slate-800 p-1.5 transition hover:bg-slate-800/70 ${
                           selectedItem ? "cursor-copy bg-slate-800/30" : ""
                         }`}
                         onClick={() => placeSelectedItem(teacher.id, period)}
@@ -1621,6 +1769,7 @@ export default function MasterSchoolSchedulerPrototype() {
                               onEdit={setEditingClass}
                               onRemove={removeClass}
                               onSelect={setSelectedItem}
+                              onPointerDragStart={handlePointerDragStart}
                             />
                           ))}
                         </div>
@@ -1654,6 +1803,7 @@ export default function MasterSchoolSchedulerPrototype() {
                   )}
                 </React.Fragment>
               ))}
+            </div>
             </div>
           </main>
 
@@ -1744,6 +1894,18 @@ export default function MasterSchoolSchedulerPrototype() {
           </div>
         </div>
       </div>
+
+      {dragPreview && (
+        <div
+          className={`pointer-events-none fixed z-[100] max-w-48 rounded-xl border p-2 text-sm font-semibold shadow-2xl opacity-90 ${dragPreview.item.color || "border-slate-500 bg-slate-800 text-slate-50"}`}
+          style={{
+            left: dragPreview.x + 12,
+            top: dragPreview.y + 12,
+          }}
+        >
+          {dragPreview.item.label}
+        </div>
+      )}
 
       {editingClass && <EditClassModal cls={editingClass} onClose={() => setEditingClass(null)} onSave={saveClass} />}
 
