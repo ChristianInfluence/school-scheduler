@@ -812,11 +812,11 @@ export default function MasterSchoolSchedulerPrototype() {
     html.appendChild(footer);
     
     const opt = {
-      margin: [8, 8, 8, 8], // Reduced margins: top, right, bottom, left
+      margin: [6, 6, 6, 6],
       filename: filename,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 2, backgroundColor: "#ffffff" },
-      jsPDF: { orientation: "landscape", unit: "mm", format: "a4" },
+      jsPDF: { orientation: "landscape", unit: "mm", format: "letter" },
     };
 
     html2pdf()
