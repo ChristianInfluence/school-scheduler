@@ -1254,6 +1254,10 @@ export default function MasterSchoolSchedulerPrototype() {
   }
 
   function removeClass(classId) {
+    const cls = classes.find((item) => item.id === classId);
+    const className = cls?.name || "this class";
+    if (!confirm(`Are you sure you want to permanently delete "${className}"?`)) return;
+
     commit((state) => ({
       ...state,
       classes: state.classes.filter((c) => c.id !== classId),
