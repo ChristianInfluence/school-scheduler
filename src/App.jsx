@@ -128,7 +128,7 @@ const blockTemplates = [
   {
     blockType: "prep",
     name: "Prep Period",
-    color: "bg-indigo-950 border-indigo-500 text-indigo-50",
+    color: "bg-cyan-950 border-cyan-400 text-cyan-50",
   },
   {
     blockType: "no-class",
@@ -138,7 +138,7 @@ const blockTemplates = [
   {
     blockType: "professional-duties",
     name: "Professional Duties",
-    color: "bg-purple-950 border-purple-500 text-purple-50",
+    color: "bg-fuchsia-950 border-fuchsia-400 text-fuchsia-50",
   },
 ];
 
