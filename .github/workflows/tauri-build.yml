@@ -26,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build macOS Tauri app
-        run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: npx tauri build --config src-tauri/tauri.ci.conf.json
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -56,7 +56,7 @@ jobs:
         run: choco install wixtoolset --yes
 
       - name: Build Windows Tauri app
-        run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: npx tauri build --config src-tauri/tauri.ci.conf.json
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
