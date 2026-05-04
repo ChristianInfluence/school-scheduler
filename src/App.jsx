@@ -229,7 +229,7 @@ function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect, onPoin
     >
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold leading-snug" title={cls.name}>
+          <div className="line-clamp-2 text-[13px] font-semibold leading-tight" title={cls.name}>
             {cls.name}
           </div>
           {details.length ? (
