@@ -1756,13 +1756,13 @@ export default function MasterSchoolSchedulerPrototype() {
 
                 <div className="space-y-1.5">
                   {PERIODS.map((period) => (
-                    <label key={period} className="grid grid-cols-[58px_1fr] items-center gap-1.5 text-xs">
+                    <label key={period} className="grid grid-cols-[24px_1fr] items-center gap-1 text-xs">
                       <span className="text-slate-300">P{period}</span>
                       <input
                         value={periodTimes[period] || ""}
                         onChange={(e) => updatePeriodTime(period, e.target.value)}
                         placeholder="8:15–9:00"
-                        className="min-w-0 rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-slate-100 placeholder:text-slate-500"
+                        className="min-w-0 rounded-lg border border-slate-600 bg-slate-950 px-1.5 py-1.5 text-slate-100 placeholder:text-slate-500"
                       />
                     </label>
                   ))}
