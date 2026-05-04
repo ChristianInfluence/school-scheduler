@@ -25,6 +25,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -33,5 +34,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5OEQ5OUNGMDQ5REFFNEEKUldSS3JwMEV6NW1ObVNPVm9vSml1MUpNRnNwZEVhYzRJSXVMTUhPSkdxZjdUQ3JTVFNTb3RlcDMK",
+      "endpoints": [
+        "https://github.com/ChristianInfluence/school-scheduler/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

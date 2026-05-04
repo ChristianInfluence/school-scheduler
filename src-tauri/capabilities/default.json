@@ -16,6 +16,7 @@
         "$HOME/**"
       ]
     },
-    "opener:default"
+    "opener:default",
+    "updater:default"
   ]
 }

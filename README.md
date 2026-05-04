@@ -36,3 +36,7 @@ You can also build locally with:
 npm install
 npx tauri build
 ```
+
+## Desktop Updates
+
+The desktop app is configured for signed Tauri updates through GitHub Releases. See `docs/desktop-updates.md` for the one-time GitHub secret setup and release steps.

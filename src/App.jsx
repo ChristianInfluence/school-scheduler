@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   ZoomIn,
   ZoomOut,
+  RefreshCw,
 } from "lucide-react";
 
 function Button({ children, className = "", variant, disabled, ...props }) {
@@ -364,6 +365,7 @@ export default function MasterSchoolSchedulerPrototype() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
   const [scheduleZoom, setScheduleZoom] = useState(0.85);
+  const [updateStatus, setUpdateStatus] = useState("");
   const fileInputRef = useRef(null);
   const classImportRef = useRef(null);
 
@@ -630,7 +632,7 @@ export default function MasterSchoolSchedulerPrototype() {
       return await confirm(message, {
         title: options.title || "Confirm",
         kind: options.kind || "warning",
-        okLabel: options.okLabel || "Delete",
+        okLabel: options.okLabel || "OK",
         cancelLabel: options.cancelLabel || "Cancel",
       });
     } catch {
@@ -652,6 +654,47 @@ export default function MasterSchoolSchedulerPrototype() {
       window.open(templateUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
       alert("Unable to open the template link: " + getErrorMessage(error));
+    }
+  }
+
+  async function checkForUpdates() {
+    if (!isTauriRuntime()) {
+      alert("Updates are only available in the installed desktop app.");
+      return;
+    }
+
+    setUpdateStatus("Checking...");
+
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+
+      if (!update) {
+        setUpdateStatus("Up to date");
+        alert("You are already using the latest version.");
+        return;
+      }
+
+      const shouldInstall = await askForConfirmation(
+        `Version ${update.version} is available. Download and install it now? The app may close during the update.`,
+        {
+          title: "Update Available",
+          kind: "info",
+          okLabel: "Update",
+        }
+      );
+
+      if (!shouldInstall) {
+        setUpdateStatus("Update available");
+        return;
+      }
+
+      setUpdateStatus("Downloading update...");
+      await update.downloadAndInstall();
+      setUpdateStatus("Installing update...");
+    } catch (error) {
+      setUpdateStatus("Update failed");
+      alert("Unable to update: " + getErrorMessage(error));
     }
   }
 
@@ -1427,6 +1470,10 @@ export default function MasterSchoolSchedulerPrototype() {
               <History size={16} className="mr-1 inline" /> Versions
             </Button>
 
+            <Button variant="outline" onClick={checkForUpdates}>
+              <RefreshCw size={16} className="mr-1 inline" /> Updates
+            </Button>
+
             <Button variant="outline" onClick={exportSchedule}>
               <Download size={16} className="mr-1 inline" /> Export
             </Button>
@@ -1457,6 +1504,7 @@ export default function MasterSchoolSchedulerPrototype() {
               <Settings size={16} className="mr-1 inline" /> Settings
             </Button>
           </div>
+          {updateStatus && <div className="text-xs text-slate-400">{updateStatus}</div>}
         </div>
 
         <div className="no-print">
