@@ -289,15 +289,15 @@ function BlockTemplateCard({ template, selected, onSelect, onPointerDragStart })
           JSON.stringify({ kind: "block-template", blockType: template.blockType })
         );
       }}
-      className={`rounded-xl border p-2 shadow-sm cursor-pointer active:cursor-grabbing ${template.color} ${
+      className={`rounded-lg border px-2 py-1.5 shadow-sm cursor-pointer active:cursor-grabbing ${template.color} ${
         selected ? "ring-2 ring-emerald-300" : ""
       }`}
     >
-      <div className="flex items-center gap-2">
-        <Icon size={16} />
-        <div className="font-semibold text-sm">{template.name}</div>
+      <div className="flex items-center gap-1.5">
+        <Icon size={14} />
+        <div className="min-w-0 truncate text-[13px] font-semibold">{template.name}</div>
       </div>
-      <div className="mt-1 text-[11px] opacity-80">Reusable block</div>
+      <div className="mt-0.5 text-[10px] leading-tight opacity-80">Reusable</div>
     </div>
   );
 }
@@ -383,7 +383,7 @@ export default function MasterSchoolSchedulerPrototype() {
   const { teachers, classes, scheduleBlocks, periodTimes, appSettings } = workingState;
   const sidebarGridClass = sidebarHidden
     ? "grid gap-4 grid-cols-1 print:block"
-    : "grid gap-4 lg:grid-cols-[220px_1fr] print:block";
+    : "grid gap-4 lg:grid-cols-[180px_1fr] print:block";
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(workingState));
