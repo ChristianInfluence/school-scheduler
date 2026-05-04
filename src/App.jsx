@@ -383,7 +383,7 @@ export default function MasterSchoolSchedulerPrototype() {
   const { teachers, classes, scheduleBlocks, periodTimes, appSettings } = workingState;
   const sidebarGridClass = sidebarHidden
     ? "grid gap-4 grid-cols-1 print:block"
-    : "grid gap-4 lg:grid-cols-[300px_1fr] print:block";
+    : "grid gap-4 lg:grid-cols-[220px_1fr] print:block";
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(workingState));
@@ -1547,6 +1547,82 @@ export default function MasterSchoolSchedulerPrototype() {
           )}
         </div>
 
+        <Card className="no-print shadow-xl">
+          <CardContent className="p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-white">Unscheduled Classes</div>
+                <div className="text-xs text-slate-400">
+                  {selectedItem
+                    ? "Click a schedule cell to place the selected item."
+                    : "Click or drag a class into the schedule."}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button onClick={addClass} className="py-1.5">
+                  <Plus size={16} className="mr-1 inline" /> Class
+                </Button>
+                <button
+                  type="button"
+                  title="View CSV template"
+                  aria-label="View CSV template"
+                  className="rounded-lg border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
+                  onClick={openTemplateLink}
+                >
+                  <FileText size={16} />
+                </button>
+                <button
+                  type="button"
+                  title="Import classes from CSV only"
+                  aria-label="Import classes from CSV only"
+                  className="rounded-lg border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
+                  onClick={() => classImportRef.current?.click()}
+                >
+                  <Upload size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div
+              data-unscheduled-drop="true"
+              className="min-h-16 rounded-lg border border-dashed border-slate-700 bg-slate-950 p-2"
+              onClick={() => {
+                if (selectedItem?.kind === "class") {
+                  unscheduleClass(selectedItem.id);
+                  setSelectedItem(null);
+                }
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                const raw = e.dataTransfer.getData("dragData");
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (data.kind === "class") unscheduleClass(data.id);
+              }}
+            >
+              {unscheduled.length ? (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                  {unscheduled.map((cls) => (
+                    <ClassCard
+                      key={cls.id}
+                      cls={cls}
+                      conflict={conflictMap.has(cls.id)}
+                      selected={selectedItem?.kind === "class" && selectedItem.id === cls.id}
+                      onEdit={setEditingClass}
+                      onRemove={removeClass}
+                      onSelect={setSelectedItem}
+                      onPointerDragStart={handlePointerDragStart}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500">All classes are scheduled for {semester}.</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {sidebarHidden && (
           <button
             type="button"
@@ -1561,91 +1637,20 @@ export default function MasterSchoolSchedulerPrototype() {
         <div className={sidebarGridClass}>
             {!sidebarHidden && (
               <aside className="no-print space-y-4">
-                <Card className="shadow-xl">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex flex-col gap-3">
-                      <h2 className="font-semibold text-white">Unscheduled Classes</h2>
-                      <div className="text-xs text-slate-400">
-                        {selectedItem
-                          ? "Click a schedule cell to place the selected item."
-                          : "Click a class or block, then click a schedule cell."}
-                      </div>
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
-                          onClick={() => setSidebarHidden(true)}
-                          aria-label="Hide sidebar"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <Button onClick={addClass}>
-                          <Plus size={16} className="mr-1 inline" /> Class
-                        </Button>
-                        <button
-                          type="button"
-                          title="View CSV template"
-                          aria-label="View CSV template"
-                          className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
-                          onClick={openTemplateLink}
-                        >
-                          <FileText size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          title="Import classes from CSV only"
-                          aria-label="Import classes from CSV only"
-                          className="rounded-full border border-slate-600 bg-slate-800 p-2 text-slate-100 hover:bg-slate-700"
-                          onClick={() => classImportRef.current?.click()}
-                        >
-                          <Upload size={16} />
-                        </button>
-                      </div>
-                    </div>
-
-                <div
-                  data-unscheduled-drop="true"
-                  className="min-h-28 rounded-2xl border border-dashed border-slate-600 bg-slate-950 p-3"
-                  onClick={() => {
-                    if (selectedItem?.kind === "class") {
-                      unscheduleClass(selectedItem.id);
-                      setSelectedItem(null);
-                    }
-                  }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    const raw = e.dataTransfer.getData("dragData");
-                    if (!raw) return;
-                    const data = JSON.parse(raw);
-                    if (data.kind === "class") unscheduleClass(data.id);
-                  }}
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                  onClick={() => setSidebarHidden(true)}
+                  aria-label="Hide sidebar"
                 >
-                  {unscheduled.length ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {unscheduled.map((cls) => (
-                        <ClassCard
-                          key={cls.id}
-                          cls={cls}
-                          conflict={conflictMap.has(cls.id)}
-                          selected={selectedItem?.kind === "class" && selectedItem.id === cls.id}
-                          onEdit={setEditingClass}
-                          onRemove={removeClass}
-                          onSelect={setSelectedItem}
-                          onPointerDragStart={handlePointerDragStart}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-slate-500">All classes are scheduled for {semester}.</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  <ChevronLeft size={16} />
+                  Hide tools
+                </button>
 
             <Card className="shadow-xl">
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="p-3 space-y-2">
                 <h2 className="font-semibold text-white">Reusable Blocks</h2>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {blockTemplates.map((template) => (
                     <BlockTemplateCard
                       key={template.blockType}
@@ -1663,26 +1668,26 @@ export default function MasterSchoolSchedulerPrototype() {
             </Card>
 
             <Card className="shadow-xl">
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="p-3 space-y-2">
                 <h2 className="font-semibold text-white">Teachers</h2>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <input
                     value={newTeacherName}
                     onChange={(e) => setNewTeacherName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addTeacher()}
                     placeholder="Add teacher name"
-                    className="w-full rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+                    className="w-full min-w-0 rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 placeholder:text-slate-500"
                   />
-                  <Button onClick={addTeacher}>
+                  <Button onClick={addTeacher} className="px-2 py-1.5">
                     <Plus size={16} />
                   </Button>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {teachers.map((teacher) => (
                     <div
                       key={teacher.id}
-                      className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm gap-2"
+                      className="flex items-center justify-between gap-1.5 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
                     >
                       {editingTeacherId === teacher.id ? (
                         <input
@@ -1693,11 +1698,11 @@ export default function MasterSchoolSchedulerPrototype() {
                             if (e.key === "Enter") saveTeacherEdit(teacher.id);
                             if (e.key === "Escape") cancelTeacherEdit();
                           }}
-                          className="flex-1 rounded-lg bg-slate-800 border border-slate-600 px-2 py-1 text-slate-100 focus:outline-none focus:border-sky-400"
+                          className="min-w-0 flex-1 rounded-lg bg-slate-800 border border-slate-600 px-2 py-1 text-slate-100 focus:outline-none focus:border-sky-400"
                           autoFocus
                         />
                       ) : (
-                        <span className="flex-1">{teacher.name}</span>
+                        <span className="min-w-0 flex-1 truncate">{teacher.name}</span>
                       )}
                       <div className="flex items-center gap-1">
                         {editingTeacherId === teacher.id ? (
@@ -1743,21 +1748,21 @@ export default function MasterSchoolSchedulerPrototype() {
             </Card>
 
             <Card className="shadow-xl">
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Clock size={16} className="text-slate-300" />
                   <h2 className="font-semibold text-white">Period Times</h2>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {PERIODS.map((period) => (
-                    <label key={period} className="grid grid-cols-[80px_1fr] items-center gap-2 text-sm">
-                      <span className="text-slate-300">Period {period}</span>
+                    <label key={period} className="grid grid-cols-[58px_1fr] items-center gap-1.5 text-xs">
+                      <span className="text-slate-300">P{period}</span>
                       <input
                         value={periodTimes[period] || ""}
                         onChange={(e) => updatePeriodTime(period, e.target.value)}
                         placeholder="8:15–9:00"
-                        className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500"
+                        className="min-w-0 rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-slate-100 placeholder:text-slate-500"
                       />
                     </label>
                   ))}
