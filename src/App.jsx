@@ -66,7 +66,7 @@ function CardContent({ children, className = "" }) {
 
 function MenuButton({ label, children }) {
   return (
-    <details className="relative">
+    <details className="relative" onMouseLeave={(event) => event.currentTarget.removeAttribute("open")}>
       <summary className="list-none cursor-pointer rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 shadow-sm transition hover:bg-slate-700">
         {label}
       </summary>
