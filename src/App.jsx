@@ -1602,7 +1602,7 @@ export default function MasterSchoolSchedulerPrototype() {
               }}
             >
               {unscheduled.length ? (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,170px))] gap-2">
                   {unscheduled.map((cls) => (
                     <ClassCard
                       key={cls.id}
