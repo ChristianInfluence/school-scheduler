@@ -294,6 +294,12 @@ function isTauriRuntime() {
   return Boolean(window.__TAURI_INTERNALS__);
 }
 
+function getErrorMessage(error) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return JSON.stringify(error);
+}
+
 function ScheduleBlockCard({ block, onRemove }) {
   const getIcon = () => {
     switch (block.blockType) {
@@ -600,9 +606,9 @@ export default function MasterSchoolSchedulerPrototype() {
       return;
     }
 
-    const [{ save }, { writeFile }] = await Promise.all([
+    const [{ save }, { invoke }] = await Promise.all([
       import("@tauri-apps/plugin-dialog"),
-      import("@tauri-apps/plugin-fs"),
+      import("@tauri-apps/api/core"),
     ]);
 
     const filePath = await save({
@@ -613,7 +619,23 @@ export default function MasterSchoolSchedulerPrototype() {
     if (!filePath) return;
 
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    await writeFile(filePath, bytes);
+    await invoke("save_file", { path: filePath, bytes: Array.from(bytes) });
+  }
+
+  async function askForConfirmation(message, options = {}) {
+    if (!isTauriRuntime()) return window.confirm(message);
+
+    try {
+      const { confirm } = await import("@tauri-apps/plugin-dialog");
+      return await confirm(message, {
+        title: options.title || "Confirm",
+        kind: options.kind || "warning",
+        okLabel: options.okLabel || "Delete",
+        cancelLabel: options.cancelLabel || "Cancel",
+      });
+    } catch {
+      return window.confirm(message);
+    }
   }
 
   async function openTemplateLink() {
@@ -629,7 +651,7 @@ export default function MasterSchoolSchedulerPrototype() {
 
       window.open(templateUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
-      alert("Unable to open the template link: " + error.message);
+      alert("Unable to open the template link: " + getErrorMessage(error));
     }
   }
 
@@ -646,7 +668,7 @@ export default function MasterSchoolSchedulerPrototype() {
         { name: "Schedule JSON", extensions: ["json"] },
       ]);
     } catch (error) {
-      alert("Error exporting schedule: " + error.message);
+      alert("Error exporting schedule: " + getErrorMessage(error));
     }
   }
 
@@ -952,16 +974,9 @@ export default function MasterSchoolSchedulerPrototype() {
     return html;
   }
 
-  function printSchedule() {
+  function getPrintableDocumentHtml() {
     const printable = buildPrintableScheduleElement();
-    const printWindow = window.open("", "_blank", "width=1100,height=850");
-
-    if (!printWindow) {
-      window.print();
-      return;
-    }
-
-    printWindow.document.write(`
+    return `
       <!doctype html>
       <html>
         <head>
@@ -1000,14 +1015,31 @@ export default function MasterSchoolSchedulerPrototype() {
         </head>
         <body>${printable.outerHTML}</body>
       </html>
-    `);
+    `;
+  }
 
-    printWindow.document.close();
-    printWindow.focus();
+  function printSchedule() {
+    const originalTitle = document.title;
+    const originalBody = document.body.innerHTML;
+    const printableDocument = new DOMParser().parseFromString(getPrintableDocumentHtml(), "text/html");
+    const printStyle = printableDocument.head.querySelector("style");
+
+    document.title = appSettings.title || "School Schedule";
+    document.body.innerHTML = printableDocument.body.innerHTML;
+    if (printStyle) document.head.appendChild(printStyle);
+
+    const restore = () => {
+      document.title = originalTitle;
+      document.body.innerHTML = originalBody;
+      printStyle?.remove();
+      window.location.reload();
+    };
+
+    window.addEventListener("afterprint", restore, { once: true });
     setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 300);
+      window.print();
+      setTimeout(restore, 1000);
+    }, 100);
   }
 
   async function exportPDF() {
@@ -1030,7 +1062,7 @@ export default function MasterSchoolSchedulerPrototype() {
         { name: "PDF", extensions: ["pdf"] },
       ]);
     } catch (error) {
-      alert("Error exporting PDF: " + error.message);
+      alert("Error exporting PDF: " + getErrorMessage(error));
     }
   }
 
@@ -1253,10 +1285,17 @@ export default function MasterSchoolSchedulerPrototype() {
     }));
   }
 
-  function removeClass(classId) {
+  async function removeClass(classId) {
     const cls = classes.find((item) => item.id === classId);
     const className = cls?.name || "this class";
-    if (!confirm(`Are you sure you want to permanently delete "${className}"?`)) return;
+    const confirmed = await askForConfirmation(
+      `Are you sure you want to permanently delete "${className}"?`,
+      {
+        title: "Delete Class",
+        okLabel: "Delete Class",
+      }
+    );
+    if (!confirmed) return;
 
     commit((state) => ({
       ...state,
