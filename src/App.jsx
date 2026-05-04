@@ -201,6 +201,13 @@ function blankClass() {
 
 function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect, onPointerDragStart }) {
   const dragItem = { kind: "class", id: cls.id, label: cls.name, color: cls.color };
+  const subject = cls.subject?.trim();
+  const room = cls.room?.trim();
+  const details = [
+    subject || null,
+    cls.grades.length ? `Gr. ${cls.grades.join(",")}` : null,
+    room ? `Rm ${room}` : null,
+  ].filter(Boolean);
 
   return (
     <div
@@ -214,42 +221,46 @@ function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect, onPoin
         onSelect?.(dragItem);
         e.dataTransfer.setData("dragData", JSON.stringify({ kind: "class", id: cls.id }));
       }}
-      className={`print-card group rounded-xl border p-2 shadow-sm cursor-pointer active:cursor-grabbing ${cls.color} ${
+      className={`print-card group rounded-lg border px-2 py-1.5 shadow-sm cursor-pointer active:cursor-grabbing ${cls.color} ${
         conflict ? "ring-2 ring-red-400" : ""
       } ${
         selected ? "ring-2 ring-emerald-300" : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold text-sm leading-tight">{cls.name}</div>
-          <div className="text-xs opacity-80">{cls.subject || "No subject"}</div>
-          <div className="mt-1 text-xs opacity-90">
-            Grades: {cls.grades.length ? cls.grades.join(", ") : "—"}
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold leading-snug" title={cls.name}>
+            {cls.name}
           </div>
-          <div className="mt-1 text-xs opacity-90">
-            Room: {cls.room?.trim() ? cls.room : "—"}
-          </div>
+          {details.length ? (
+            <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0 text-[10px] leading-tight opacity-85">
+              {details.map((detail) => (
+                <span key={detail} className="whitespace-nowrap">
+                  {detail}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        <div className="no-print flex gap-1 opacity-0 group-hover:opacity-100 transition">
+        <div className="no-print flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onEdit(cls);
             }}
-            className="rounded-md p-1 hover:bg-white/20"
+            className="rounded-md p-0.5 hover:bg-white/20"
           >
-            <Pencil size={14} />
+            <Pencil size={12} />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onRemove(cls.id);
             }}
-            className="rounded-md p-1 hover:bg-white/20"
+            className="rounded-md p-0.5 hover:bg-white/20"
           >
-            <Trash2 size={14} />
+            <Trash2 size={12} />
           </button>
         </div>
       </div>
@@ -319,16 +330,16 @@ function ScheduleBlockCard({ block, onRemove }) {
 
   return (
     <div
-      className={`print-card group rounded-xl border p-2 shadow-sm ${block.color}`}
+      className={`print-card group rounded-lg border px-2 py-1.5 shadow-sm ${block.color}`}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2 font-semibold text-sm">
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 truncate text-[13px] font-semibold leading-snug">
             {getIcon()}
-            {block.name}
+            <span className="truncate">{block.name}</span>
           </div>
-          <div className="mt-1 text-xs opacity-80">
+          <div className="mt-0.5 text-[10px] leading-tight opacity-80">
             {block.blockType === "lunch" ? "Shared lunch period" : "Blocked schedule time"}
           </div>
         </div>
@@ -337,11 +348,11 @@ function ScheduleBlockCard({ block, onRemove }) {
             e.stopPropagation();
             onRemove(block.id);
           }}
-          className={`no-print rounded-md p-1 opacity-0 group-hover:opacity-100 hover:bg-white/20 ${
+          className={`no-print shrink-0 rounded-md p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/20 ${
             block.blockType === "lunch" ? "hidden" : ""
           }`}
         >
-          <Trash2 size={14} />
+          <Trash2 size={12} />
         </button>
       </div>
     </div>
@@ -1839,14 +1850,14 @@ export default function MasterSchoolSchedulerPrototype() {
                         data-schedule-cell="true"
                         data-teacher-id={teacher.id}
                         data-period={period}
-                        className={`min-h-28 border-b border-r border-slate-800 p-1.5 transition hover:bg-slate-800/70 ${
+                        className={`min-h-20 border-b border-r border-slate-800 p-1 transition hover:bg-slate-800/70 ${
                           selectedItem ? "cursor-copy bg-slate-800/30" : ""
                         }`}
                         onClick={() => placeSelectedItem(teacher.id, period)}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => handleDrop(e, teacher.id, period)}
                       >
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                           {blocksInCell.map((block) => (
                             <ScheduleBlockCard key={block.id} block={block} onRemove={removeScheduleBlock} />
                           ))}
