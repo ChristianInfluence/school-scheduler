@@ -221,15 +221,15 @@ function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect, onPoin
         onSelect?.(dragItem);
         e.dataTransfer.setData("dragData", JSON.stringify({ kind: "class", id: cls.id }));
       }}
-      className={`print-card group rounded-lg border px-2 py-1.5 shadow-sm cursor-pointer active:cursor-grabbing ${cls.color} ${
+      className={`print-card group relative rounded-lg border px-2 py-1.5 shadow-sm cursor-pointer active:cursor-grabbing ${cls.color} ${
         conflict ? "ring-2 ring-red-400" : ""
       } ${
         selected ? "ring-2 ring-emerald-300" : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-1.5">
-        <div className="min-w-0 flex-1">
-          <div className="line-clamp-2 text-[13px] font-semibold leading-tight" title={cls.name}>
+      <div>
+        <div>
+          <div className="line-clamp-2 pr-8 text-[13px] font-semibold leading-tight" title={cls.name}>
             {cls.name}
           </div>
           {details.length ? (
@@ -243,7 +243,7 @@ function ClassCard({ cls, conflict, selected, onEdit, onRemove, onSelect, onPoin
           ) : null}
         </div>
 
-        <div className="no-print flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition">
+        <div className="no-print absolute right-1 top-1 flex gap-0.5 rounded-md bg-black/20 opacity-0 transition group-hover:opacity-100">
           <button
             onClick={(e) => {
               e.stopPropagation();
