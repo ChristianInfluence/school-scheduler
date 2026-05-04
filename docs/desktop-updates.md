@@ -1,6 +1,6 @@
 # Desktop Updates
 
-The Windows desktop app uses Tauri's signed updater. Release builds publish installer assets plus `latest.json` to GitHub Releases, and the app's **Updates** button checks that file.
+The desktop app uses Tauri's signed updater on Windows and macOS. Release builds publish installer assets plus `latest.json` to GitHub Releases, and the app's **Updates** button checks that file.
 
 ## One-Time Setup
 
@@ -27,7 +27,7 @@ Do not commit the private key. If the private key is lost, already-installed app
    ```
 
 4. GitHub Actions will run `Release Desktop App`.
-5. The release will include Windows installers, signatures, and `latest.json`.
+5. The release will include Windows and macOS installers/update bundles, signatures, and `latest.json`.
 
 Installed apps can then use the **Updates** button.
 
