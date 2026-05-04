@@ -64,6 +64,35 @@ function CardContent({ children, className = "" }) {
   return <div className={className}>{children}</div>;
 }
 
+function MenuButton({ label, children }) {
+  return (
+    <details className="relative">
+      <summary className="list-none cursor-pointer rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 shadow-sm transition hover:bg-slate-700">
+        {label}
+      </summary>
+      <div className="absolute right-0 z-50 mt-2 min-w-44 rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function MenuItem({ icon: Icon, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.currentTarget.closest("details")?.removeAttribute("open");
+        onClick?.();
+      }}
+      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-100 transition hover:bg-slate-800"
+    >
+      {Icon && <Icon size={15} />}
+      {children}
+    </button>
+  );
+}
+
 const STORAGE_KEY = "wvcs-master-scheduler-working";
 const VERSIONS_KEY = "wvcs-master-scheduler-versions";
 
@@ -1498,25 +1527,34 @@ export default function MasterSchoolSchedulerPrototype() {
               <Save size={16} className="mr-1 inline" /> Save Version
             </Button>
 
-            <Button variant="outline" onClick={printSchedule}>
-              <Printer size={16} className="mr-1 inline" /> Print
-            </Button>
-
             <Button variant="outline" onClick={() => setVersionHistoryOpen(true)}>
               <History size={16} className="mr-1 inline" /> Versions
             </Button>
 
-            <Button variant="outline" onClick={checkForUpdates}>
-              <RefreshCw size={16} className="mr-1 inline" /> Updates
-            </Button>
+            <MenuButton label="File">
+              <MenuItem icon={Upload} onClick={() => fileInputRef.current?.click()}>
+                Import Schedule
+              </MenuItem>
+              <MenuItem icon={Download} onClick={exportSchedule}>
+                Export Schedule
+              </MenuItem>
+              <MenuItem icon={FileText} onClick={exportPDF}>
+                Export PDF
+              </MenuItem>
+              <MenuItem icon={Printer} onClick={printSchedule}>
+                Print
+              </MenuItem>
+            </MenuButton>
 
-            <Button variant="outline" onClick={exportSchedule}>
-              <Download size={16} className="mr-1 inline" /> Export
-            </Button>
+            <MenuButton label="Tools">
+              <MenuItem icon={RefreshCw} onClick={checkForUpdates}>
+                Check for Updates
+              </MenuItem>
+              <MenuItem icon={Settings} onClick={() => setSettingsOpen(true)}>
+                Settings
+              </MenuItem>
+            </MenuButton>
 
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={16} className="mr-1 inline" /> Import
-            </Button>
             <input
               ref={fileInputRef}
               type="file"
@@ -1531,14 +1569,6 @@ export default function MasterSchoolSchedulerPrototype() {
               onChange={importClasses}
               className="hidden"
             />
-
-            <Button variant="outline" onClick={exportPDF}>
-              <FileText size={16} className="mr-1 inline" /> PDF
-            </Button>
-
-            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-              <Settings size={16} className="mr-1 inline" /> Settings
-            </Button>
           </div>
           {updateStatus && <div className="text-xs text-slate-400">{updateStatus}</div>}
         </div>
