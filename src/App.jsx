@@ -84,7 +84,14 @@ const initialPeriodTimes = {
 const initialTeachers = [
   { id: "t1", name: "Mr. Conniry" },
   { id: "t2", name: "Ms. Keith" },
-  { id: "t3", name: "Mr. Cota" },
+  { id: "t3", name: "Mr. Connors" },
+  { id: "t4", name: "Mr. Shore" },
+  { id: "t5", name: "Mrs. Brown" },
+  { id: "t6", name: "Ms. Reed" },
+  { id: "t7", name: "Mrs. Huff" },
+  { id: "t8", name: "Ms. Isabel" },
+  { id: "t9", name: "Mrs. Sellers" },
+  { id: "t10", name: "Mrs. Bennett" },
 ];
 
 const blockTemplates = [
