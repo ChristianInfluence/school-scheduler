@@ -23,6 +23,7 @@ import {
   FileText,
   Briefcase,
   ChevronLeft,
+  ChevronRight,
   ZoomIn,
   ZoomOut,
   RefreshCw,
@@ -1406,6 +1407,23 @@ export default function MasterSchoolSchedulerPrototype() {
     }));
   }
 
+  function moveTeacher(teacherId, direction) {
+    commit((state) => {
+      const index = state.teachers.findIndex((teacher) => teacher.id === teacherId);
+      const nextIndex = index + direction;
+
+      if (index < 0 || nextIndex < 0 || nextIndex >= state.teachers.length) {
+        return state;
+      }
+
+      const teachers = [...state.teachers];
+      const [teacher] = teachers.splice(index, 1);
+      teachers.splice(nextIndex, 0, teacher);
+
+      return { ...state, teachers };
+    });
+  }
+
   function startEditingTeacher(teacher) {
     setEditingTeacherId(teacher.id);
     setEditingTeacherName(teacher.name);
@@ -1691,7 +1709,7 @@ export default function MasterSchoolSchedulerPrototype() {
                 </div>
 
                 <div className="space-y-1.5">
-                  {teachers.map((teacher) => (
+                  {teachers.map((teacher, index) => (
                     <div
                       key={teacher.id}
                       className="flex items-center justify-between gap-1.5 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
@@ -1731,6 +1749,22 @@ export default function MasterSchoolSchedulerPrototype() {
                           </>
                         ) : (
                           <>
+                            <button
+                              onClick={() => moveTeacher(teacher.id, -1)}
+                              disabled={index === 0}
+                              className="text-slate-500 transition-colors hover:text-sky-400 disabled:opacity-25 disabled:hover:text-slate-500"
+                              title="Move left"
+                            >
+                              <ChevronLeft size={14} />
+                            </button>
+                            <button
+                              onClick={() => moveTeacher(teacher.id, 1)}
+                              disabled={index === teachers.length - 1}
+                              className="text-slate-500 transition-colors hover:text-sky-400 disabled:opacity-25 disabled:hover:text-slate-500"
+                              title="Move right"
+                            >
+                              <ChevronRight size={14} />
+                            </button>
                             <button
                               onClick={() => startEditingTeacher(teacher)}
                               className="text-slate-500 hover:text-sky-400 transition-colors"
